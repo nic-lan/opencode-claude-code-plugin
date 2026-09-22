@@ -837,6 +837,19 @@ To replace (rather than augment) bridged MCP with your own:
 }
 ```
 
+### OAuth-protected remote servers
+
+If a bridged `remote` server requires OAuth and you've already authenticated it through opencode's own MCP OAuth flow, the plugin reads opencode's token store (`~/.local/share/opencode/mcp-auth.json`, or `$XDG_DATA_HOME/opencode/mcp-auth.json`) and injects `Authorization: Bearer <token>` into the bridged config automatically. No extra plugin configuration is needed.
+
+- A server is only touched when `mcp-auth.json` has an entry whose `serverUrl` matches the bridged server's URL exactly.
+- If a matching entry exists but its token is missing or expired (30s skew), the server is **excluded** from the bridged config entirely rather than passed through unauthenticated. An unauthenticated request to an OAuth-required MCP server produces a fatal error that can block the whole Claude CLI session; a temporarily absent server is the safer failure.
+- An `Authorization` header you've already set explicitly in opencode's own MCP config is never overridden.
+- Token rotation is picked up on the next turn: the bridge hash folds in a one-way freshness key per server (never the token itself), so the CLI process respawns with the new token instead of keeping a stale one until something else happens to invalidate the config.
+
+This plugin never performs the OAuth flow itself and never refreshes a token — it only reads whatever opencode's own token store already has. If a token is expired and opencode hasn't refreshed it yet, the server stays excluded (see above) until opencode refreshes it or you re-authenticate it through opencode's own MCP OAuth flow.
+
+> **Undocumented format caveat.** `mcp-auth.json`'s schema is not part of opencode's public API or type surface; it was reverse-engineered by inspection on opencode 1.18.31 (2026-09-18) and is not guaranteed to stay stable across opencode releases. If bearer injection silently stops working after an opencode upgrade, check whether the file's shape changed before assuming a regression in this plugin.
+
 ---
 
 ## Sessions
